@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PetShop - Agendamentos</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <h1>PetShop Amigo Fiel</h1>
+        <nav>
+            <a href="index.html">Home</a>
+            <button id="logoutBtn">Sair</button>
+        </nav>
+    </header>
+    <main>
+        <section class="appointments">
+            <h2>Meus Agendamentos</h2>
+            <button id="newAppointmentBtn" class="btn">Novo Agendamento</button>
+            
+            <div id="appointmentForm" class="modal" style="display: none;">
+                <div class="modal-content">
+                    <span class="close">&times;</span>
+                    <h3 id="formTitle">Novo Agendamento</h3>
+                    <form id="petForm">
+                        <input type="hidden" id="petId">
+                        <div class="form-group">
+                            <label for="petName">Nome do Pet:</label>
+                            <input type="text" id="petName" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="breed">Raça:</label>
+                            <input type="text" id="breed" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="appointmentDate">Data e Hora:</label>
+                            <input type="datetime-local" id="appointmentDate" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="observations">Observações:</label>
+                            <textarea id="observations"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label for="petImage">Foto do Pet:</label>
+                            <input type="file" id="petImage" accept="image/*">
+                            <div id="imagePreview" class="image-preview"></div>
+                        </div>
+                        <button type="submit" class="btn">Salvar</button>
+                    </form>
+                </div>
+            </div>
+            
+            <div id="appointmentsList"></div>
+        </section>
+    </main>
+    <script src="script.js"></script>
+</body>
+</html>
