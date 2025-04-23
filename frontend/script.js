@@ -11,12 +11,19 @@ const API_BASE_URL = 'http://localhost:3000/api';
  * @param {boolean} isError - Se true, exibe como mensagem de erro
  */
 function showMessage(message, isError = false) {
+    // Remove mensagens existentes
+    const existingMessages = document.querySelectorAll('.success-message, .error-message');
+    existingMessages.forEach(msg => msg.remove());
+    
     const messageDiv = document.createElement('div');
     messageDiv.className = isError ? 'error-message' : 'success-message';
     messageDiv.textContent = message;
     document.body.appendChild(messageDiv);
     
-    setTimeout(() => messageDiv.remove(), 5000);
+    setTimeout(() => {
+        messageDiv.style.animation = 'slideIn 0.3s ease-out reverse';
+        setTimeout(() => messageDiv.remove(), 300);
+    }, 4500);
 }
 
 /**
@@ -30,6 +37,25 @@ function setupPasswordToggle() {
             this.textContent = input.type === 'password' ? '👁️' : '👁️';
         });
     });
+}
+
+/**
+ * Valida um email
+ * @param {string} email 
+ * @returns {boolean}
+ */
+function validateEmail(email) {
+    const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return re.test(email);
+}
+
+/**
+ * Valida uma senha (mínimo 6 caracteres)
+ * @param {string} password 
+ * @returns {boolean}
+ */
+function validatePassword(password) {
+    return password.length >= 6;
 }
 
 // ==============================================
@@ -67,7 +93,6 @@ async function makeRequest(url, method, body = null, requiresAuth = false) {
 
         const response = await fetch(`${API_BASE_URL}${url}`, options);
         
-        // Verifica se a resposta foi bem-sucedida
         if (!response.ok) {
             let errorData;
             try {
@@ -78,7 +103,6 @@ async function makeRequest(url, method, body = null, requiresAuth = false) {
             throw new Error(errorData.message || 'Erro na requisição');
         }
 
-        // Verifica se o corpo da resposta está vazio antes de tentar parsear como JSON
         const text = await response.text();
         return text ? JSON.parse(text) : [];
     } catch (error) {
@@ -86,7 +110,6 @@ async function makeRequest(url, method, body = null, requiresAuth = false) {
         throw error;
     }
 }
-
 
 // ==============================================
 // GERENCIAMENTO DE AUTENTICAÇÃO
@@ -101,33 +124,44 @@ function checkAuth() {
     
     if (!localStorage.getItem('token') && !publicPages.includes(currentPage)) {
         window.location.href = 'login.html';
+    } else if (localStorage.getItem('token') && publicPages.includes(currentPage) && currentPage !== 'index.html') {
+        window.location.href = 'agendamentos.html';
     }
 }
+
+// Verifica autenticação ao carregar a página
+document.addEventListener('DOMContentLoaded', checkAuth);
 
 // ==============================================
 // CADASTRO DE USUÁRIO
 // ==============================================
 
 if (document.getElementById('registerForm')) {
-    // Configura o toggle de senha
     setupPasswordToggle();
 
     document.getElementById('registerForm').addEventListener('submit', async (e) => {
         e.preventDefault();
         
         try {
-            showMessage('Processando cadastro...');
-            
             const email = document.getElementById('email').value;
             const password = document.getElementById('password').value;
             const confirmPassword = document.getElementById('confirmPassword').value;
 
-            // Validação básica
+            // Validações
+            if (!validateEmail(email)) {
+                throw new Error('Por favor, insira um email válido');
+            }
+
+            if (!validatePassword(password)) {
+                throw new Error('A senha deve ter pelo menos 6 caracteres');
+            }
+
             if (password !== confirmPassword) {
                 throw new Error('As senhas não coincidem');
             }
 
-            // Faz a requisição de cadastro
+            showMessage('Processando cadastro...');
+            
             await makeRequest('/auth/register', 'POST', { email, password });
             
             showMessage('Cadastro realizado com sucesso! Redirecionando...');
@@ -143,21 +177,26 @@ if (document.getElementById('registerForm')) {
 // ==============================================
 
 if (document.getElementById('loginForm')) {
-    // Configura o toggle de senha
     setupPasswordToggle();
 
     document.getElementById('loginForm').addEventListener('submit', async (e) => {
         e.preventDefault();
         
         try {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+
+            if (!email || !password) {
+                throw new Error('Por favor, preencha todos os campos');
+            }
+
             showMessage('Autenticando...');
             
             const response = await makeRequest('/auth/login', 'POST', {
-                email: document.getElementById('email').value,
-                password: document.getElementById('password').value
+                email,
+                password
             });
 
-            // Armazena o token JWT
             localStorage.setItem('token', response.token);
             localStorage.setItem('userId', response.userId);
             
@@ -177,7 +216,8 @@ if (document.getElementById('logoutBtn')) {
     document.getElementById('logoutBtn').addEventListener('click', () => {
         localStorage.removeItem('token');
         localStorage.removeItem('userId');
-        window.location.href = 'index.html';
+        showMessage('Logout realizado com sucesso!');
+        setTimeout(() => window.location.href = 'index.html', 1000);
     });
 }
 
@@ -186,7 +226,6 @@ if (document.getElementById('logoutBtn')) {
 // ==============================================
 
 if (document.getElementById('appointmentsList')) {
-    // Verifica autenticação
     checkAuth();
     
     const token = localStorage.getItem('token');
@@ -231,40 +270,35 @@ if (document.getElementById('appointmentsList')) {
         try {
             showMessage('Carregando agendamentos...');
             
-            const response = await fetch(`${API_BASE_URL}/pets`, {
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
-                }
-            });
-    
-            if (!response.ok) {
-                throw new Error(`Erro HTTP: ${response.status}`);
-            }
-    
-            const appointments = await response.json();
-            console.log('Dados recebidos:', appointments); // Debug
-    
+            const appointments = await makeRequest('/pets', 'GET', null, true);
             const container = document.getElementById('appointmentsList');
             container.innerHTML = '';
-    
+
             if (!appointments || appointments.length === 0) {
-                container.innerHTML = '<p class="no-appointments">Nenhum agendamento encontrado</p>';
+                container.innerHTML = `
+                    <div class="no-appointments">
+                        <p>Nenhum agendamento encontrado</p>
+                        <button id="newAppointmentBtnEmpty" class="btn">Agendar agora</button>
+                    </div>
+                `;
+                document.getElementById('newAppointmentBtnEmpty').addEventListener('click', () => {
+                    document.getElementById('newAppointmentBtn').click();
+                });
                 return;
             }
-    
+
             appointments.forEach(appointment => {
                 const card = document.createElement('div');
                 card.className = 'appointment-card';
                 
-                // Corrige o caminho da imagem
                 const imageUrl = appointment.image_path 
                     ? `${API_BASE_URL}/${appointment.image_path.replace(/\\/g, '/')}`
                     : null;
-    
+
                 card.innerHTML = `
                     <div class="pet-image">
                         ${imageUrl 
-                            ? `<img src="${imageUrl}" alt="${appointment.pet_name}" style="max-width: 100px;">`
+                            ? `<img src="${imageUrl}" alt="${appointment.pet_name}">`
                             : '<div class="no-image">Sem imagem</div>'}
                     </div>
                     <div class="pet-info">
@@ -275,13 +309,26 @@ if (document.getElementById('appointmentsList')) {
                     </div>
                     <div class="pet-actions">
                         <button class="btn edit-btn" data-id="${appointment.id}">Editar</button>
-                        <button class="btn delete-btn" data-id="${appointment.id}">Excluir</button>
+                        <button class="btn btn-danger delete-btn" data-id="${appointment.id}">Excluir</button>
                     </div>
                 `;
                 
                 container.appendChild(card);
             });
-    
+
+            // Adiciona eventos aos botões
+            document.querySelectorAll('.edit-btn').forEach(btn => {
+                btn.addEventListener('click', () => editAppointment(btn.dataset.id));
+            });
+
+            document.querySelectorAll('.delete-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    if (confirm('Tem certeza que deseja excluir este agendamento?')) {
+                        deleteAppointment(btn.dataset.id);
+                    }
+                });
+            });
+
         } catch (error) {
             console.error('Erro ao carregar agendamentos:', error);
             showMessage(`Erro: ${error.message}`, true);
@@ -343,15 +390,30 @@ if (document.getElementById('appointmentsList')) {
 
     // Carrega os agendamentos ao iniciar
     loadAppointments();
+
+    // Manipulador do formulário
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
         try {
+            const petName = document.getElementById('petName').value;
+            const breed = document.getElementById('breed').value;
+            const appointmentDate = document.getElementById('appointmentDate').value;
+            
+            // Validações básicas
+            if (!petName || !breed || !appointmentDate) {
+                throw new Error('Por favor, preencha todos os campos obrigatórios');
+            }
+
+            if (new Date(appointmentDate) < new Date()) {
+                throw new Error('A data do agendamento não pode ser no passado');
+            }
+
             showMessage('Salvando agendamento...');
             
             const formData = new FormData();
-            formData.append('pet_name', document.getElementById('petName').value);
-            formData.append('breed', document.getElementById('breed').value);
-            formData.append('appointment_date', document.getElementById('appointmentDate').value);
+            formData.append('pet_name', petName);
+            formData.append('breed', breed);
+            formData.append('appointment_date', appointmentDate);
             formData.append('observations', document.getElementById('observations').value);
             
             const imageInput = document.getElementById('petImage');
@@ -363,7 +425,6 @@ if (document.getElementById('appointmentsList')) {
             const method = id ? 'PUT' : 'POST';
             const url = id ? `/pets/${id}` : '/pets';
     
-            // Requisição especial para FormData (não pode usar makeRequest atual)
             const headers = {
                 'Authorization': `Bearer ${localStorage.getItem('token')}`
             };
